@@ -1,14 +1,14 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db');
-const userRoutes = require('./routes/userRoutes');
-const produitRoutes = require('./routes/produitRoutes');       // Updated
-const commandeRoutes = require('./routes/commandeRoutes');
-const livraisonRoutes = require('./routes/livraisonRoutes');
-const alerteStockRoutes = require('./routes/alerteStockRoutes');
-const categorieRoutes = require('./routes/categorieRoutes');
-const ligneCommandeRoutes = require('./routes/ligneCommandeRoutes');  // Updated
-const rapportRoutes = require('./routes/rapportRoutes');
+const connectDB = require('./src/config/db');
+const userRoutes = require('./src/routes/userRoutes');
+const produitRoutes = require('./src/routes/produitRoutes');       // Updated
+const commandeRoutes = require('./src/routes/commandeRoutes');
+const livraisonRoutes = require('./src/routes/livraisonRoutes');
+const alerteStockRoutes = require('./src/routes/alerteStockRoutes');
+const categorieRoutes = require('./src/routes/categorieRoutes');
+const ligneCommandeRoutes = require('./src/routes/ligneCommandeRoutes');  // Updated
+const rapportRoutes = require('./src/routes/rapportRoutes');
 
 // Load environment variables
 dotenv.config();

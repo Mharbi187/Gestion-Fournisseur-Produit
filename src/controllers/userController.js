@@ -73,17 +73,22 @@ exports.createUser = async (req, res) => {
 // PUT update user (exclude password updates)
 exports.updateUser = async (req, res) => {
   try {
-    const { nom, prenom, email, adresse, statut, role } = req.body;
+    const { nom, prenom, adresse, statut, role } = req.body;
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
-      { nom, prenom, email, adresse, statut, role },
-      { new: true }
+      { nom, prenom, adresse, statut, role },
+      { new: true, runValidators: true }  // Critical options
     ).select('-motdepasse');
 
-    if (!updatedUser) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
     res.status(200).json(updatedUser);
   } catch (error) {
-    res.status(400).json({ message: 'Erreur de mise à jour', error: error.message });
+    res.status(400).json({ 
+      message: 'Erreur de mise à jour',
+      error: error.message 
+    });
   }
 };
 
