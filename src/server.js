@@ -2,20 +2,20 @@ const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
-const produitRoutes = require('./routes/produits');
-const commandeRoutes = require('./routes/commandeRoutes.js');
-const livraisonRoutes = require('./routes/livraisonRoutes.js');
-const alerteStockRoutes = require('./routes/alerteStockRoutes.js');
-const categorieRoutes = require('./routes/categorieRoutes.js');
-const ligneCommandeRoutes = require('./routes/ligne_commande');
-const rapportRoutes = require('./routes/rapportRoutes.js');
+const produitRoutes = require('./routes/produitRoutes');       // Updated
+const commandeRoutes = require('./routes/commandeRoutes');
+const livraisonRoutes = require('./routes/livraisonRoutes');
+const alerteStockRoutes = require('./routes/alerteStockRoutes');
+const categorieRoutes = require('./routes/categorieRoutes');
+const ligneCommandeRoutes = require('./routes/ligneCommandeRoutes');  // Updated
+const rapportRoutes = require('./routes/rapportRoutes');
 
 // Load environment variables
 dotenv.config();
 
 // Initialize Express app
 const app = express();
-app.use(express.json()); // Parse JSON request bodies
+app.use(express.json());
 
 // Connect to MongoDB
 connectDB();
