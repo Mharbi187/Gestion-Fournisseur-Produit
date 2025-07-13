@@ -3,12 +3,12 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const produitRoutes = require('./routes/produits');
-const commandeRoutes = require('./routes/commandes');
-const livraisonRoutes = require('./routes/livraisons');
-const alerteStockRoutes = require('./routes/alertes_stock');
-const categorieRoutes = require('./routes/categories');
+const commandeRoutes = require('./routes/commandeRoutes.js');
+const livraisonRoutes = require('./routes/livraisonRoutes.js');
+const alerteStockRoutes = require('./routes/alerteStockRoutes.js');
+const categorieRoutes = require('./routes/categorieRoutes.js');
 const ligneCommandeRoutes = require('./routes/ligne_commande');
-const rapportRoutes = require('./routes/rapports');
+const rapportRoutes = require('./routes/rapportRoutes.js');
 
 // Load environment variables
 dotenv.config();
