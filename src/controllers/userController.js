@@ -1,6 +1,13 @@
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
 
-// Get all users
+// Hash password before saving (alternative: use a pre-save hook in the model)
+const hashPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return await bcrypt.hash(password, salt);
+};
+
+// Get all users (exclude passwords)
 const getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-motdepasse');
@@ -10,31 +17,39 @@ const getUsers = async (req, res) => {
   }
 };
 
-// Create a new user
+// Create a new user (with password hashing)
 const createUser = async (req, res) => {
   const { nom, prenom, email, motdepasse, adresse, statut, role } = req.body;
 
   try {
+    // Validation
     if (!nom || !prenom || !email || !motdepasse || !adresse) {
       return res.status(400).json({ message: 'Tous les champs requis doivent être fournis' });
     }
 
+    // Check for existing user
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Cet email existe déjà' });
     }
 
+    // Hash password
+    const hashedPassword = await hashPassword(motdepasse);
+
+    // Create user
     const user = new User({
       nom,
       prenom,
       email,
-      motdepasse, // Plain-text password
+      motdepasse: hashedPassword, // Store hashed password
       adresse,
       statut: statut || 'Active',
       role: role || 'User',
     });
 
     await user.save();
+
+    // Return user without password
     res.status(201).json({
       message: 'Utilisateur créé avec succès',
       user: {
