@@ -1,27 +1,38 @@
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
 
-// Hash password before saving (alternative: use a pre-save hook in the model)
+// Hash password utility
 const hashPassword = async (password) => {
   const salt = await bcrypt.genSalt(10);
   return await bcrypt.hash(password, salt);
 };
 
-// Get all users (exclude passwords)
-const getUsers = async (req, res) => {
+// GET all users (exclude passwords)
+exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-motdepasse');
-    res.status(200).json({ message: 'Utilisateurs récupérés avec succès', users });
+    res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
 
-// Create a new user (with password hashing)
-const createUser = async (req, res) => {
-  const { nom, prenom, email, motdepasse, adresse, statut, role } = req.body;
-
+// GET single user by ID (exclude password)
+exports.getUserById = async (req, res) => {
   try {
+    const user = await User.findById(req.params.id).select('-motdepasse');
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+// POST create user (with password hashing)
+exports.createUser = async (req, res) => {
+  try {
+    const { nom, prenom, email, motdepasse, adresse, statut, role } = req.body;
+
     // Validation
     if (!nom || !prenom || !email || !motdepasse || !adresse) {
       return res.status(400).json({ message: 'Tous les champs requis doivent être fournis' });
@@ -41,7 +52,7 @@ const createUser = async (req, res) => {
       nom,
       prenom,
       email,
-      motdepasse: hashedPassword, // Store hashed password
+      motdepasse: hashedPassword,
       adresse,
       statut: statut || 'Active',
       role: role || 'User',
@@ -50,21 +61,39 @@ const createUser = async (req, res) => {
     await user.save();
 
     // Return user without password
-    res.status(201).json({
-      message: 'Utilisateur créé avec succès',
-      user: {
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-        adresse: user.adresse,
-        statut: user.statut,
-        role: user.role,
-        _id: user._id,
-      },
-    });
+    const userResponse = user.toObject();
+    delete userResponse.motdepasse;
+    res.status(201).json(userResponse);
+
   } catch (error) {
-    res.status(400).json({ message: 'Erreur lors de la création', error: error.message });
+    res.status(400).json({ message: 'Erreur de création', error: error.message });
   }
 };
 
-module.exports = { getUsers, createUser };
+// PUT update user (exclude password updates)
+exports.updateUser = async (req, res) => {
+  try {
+    const { nom, prenom, email, adresse, statut, role } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { nom, prenom, email, adresse, statut, role },
+      { new: true }
+    ).select('-motdepasse');
+
+    if (!updatedUser) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    res.status(400).json({ message: 'Erreur de mise à jour', error: error.message });
+  }
+};
+
+// DELETE user
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    res.status(200).json({ message: 'Utilisateur supprimé' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
