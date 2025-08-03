@@ -1,5 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
+const cors = require('cors');  // Added this line
 const connectDB = require('./src/config/db');
 const userRoutes = require('./src/routes/userRoutes');
 const produitRoutes = require('./src/routes/produitRoutes');
@@ -12,11 +13,18 @@ const rapportRoutes = require('./src/routes/rapportRoutes');
 
 // Load environment variables
 dotenv.config();
-console.log('PORT from .env:', process.env.PORT); // Debug log
-console.log('MONGODB_URI from .env:', process.env.MONGODB_URI); // Debug log
+console.log('PORT from .env:', process.env.PORT);
+console.log('MONGODB_URI from .env:', process.env.MONGODB_URI);
 
 // Initialize Express app
 const app = express();
+
+// CORS configuration (updated for port 5173)
+app.use(cors({
+  origin: 'http://localhost:5173', // Changed to Vite default port
+  credentials: true               // Required for cookies/auth
+}));
+
 app.use(express.json());
 
 // Connect to MongoDB
@@ -35,7 +43,8 @@ app.use('/api/rapports', rapportRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;
-console.log('Using PORT:', PORT); // Debug log
+console.log('Using PORT:', PORT);
 app.listen(PORT, () => {
   console.log(`Serveur lancé sur http://localhost:${PORT}`);
+  console.log(`CORS autorisé pour: http://localhost:5173`); // Added console log
 });

@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 // GET all users (admin only)
 exports.register = async (req, res) => {
   try {
-    const { nom, prenom, email, mdp, role } = req.body;
+    const { nom, prenom, email, motdepasse, adresse } = req.body; // Changé mdp → motdepasse
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -16,14 +16,15 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user (using your existing User model)
-    const hashedPassword = await bcrypt.hash(mdp, 12);
+    // Create user
+    const hashedPassword = await bcrypt.hash(motdepasse, 12); // Changé ici
     const user = new User({
       nom,
       prenom,
       email,
-      mdp: hashedPassword,
-      role: role || 'client'
+      mdp: hashedPassword, // Gardez mdp pour le modèle mais prenez motdepasse du body
+      role: 'client', // Par défaut
+      adresse // Ajout de l'adresse
     });
 
     await user.save();
@@ -35,7 +36,6 @@ exports.register = async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    // Return response (consistent with your existing format)
     res.status(201).json({
       success: true,
       token,
@@ -43,19 +43,20 @@ exports.register = async (req, res) => {
         id: user._id,
         nom: user.nom,
         email: user.email,
-        role: user.role
+        role: user.role,
+        adresse: user.adresse
       }
     });
 
   } catch (error) {
+    console.error('Erreur complète:', error);
     res.status(400).json({
       success: false,
       message: 'Erreur de création',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
-
 exports.login = async (req, res) => {
   try {
     const { email, mdp } = req.body;
