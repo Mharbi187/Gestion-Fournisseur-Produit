@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const bcrypt = require ('bcryptjs')
+const jwt = require('jsonwebtoken');
 
 // GET all users (admin only)
 exports.register = async (req, res) => {
