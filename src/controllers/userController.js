@@ -1,6 +1,96 @@
 const User = require('../models/User');
 
 // GET all users (admin only)
+exports.register = async (req, res) => {
+  try {
+    const { nom, prenom, email, mdp, role } = req.body;
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Cet email existe déjà' 
+      });
+    }
+
+    // Create user (using your existing User model)
+    const hashedPassword = await bcrypt.hash(mdp, 12);
+    const user = new User({
+      nom,
+      prenom,
+      email,
+      mdp: hashedPassword,
+      role: role || 'client'
+    });
+
+    await user.save();
+
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Return response (consistent with your existing format)
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        nom: user.nom,
+        email: user.email,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: 'Erreur de création',
+      error: error.message
+    });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, mdp } = req.body;
+
+    const user = await User.findOne({ email }).select('+mdp');
+    if (!user || !(await bcrypt.compare(mdp, user.mdp))) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        nom: user.nom,
+        email: user.email,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+};
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-mdp');
