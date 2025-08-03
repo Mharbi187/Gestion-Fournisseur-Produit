@@ -1,12 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const categorieController = require('../controllers/categorieController');
+const { authenticateToken, authorizedRole } = require('../middleware/auth');
 
-// CRUD Routes
-router.get('/', categorieController.getCategories);           // GET all categories
-router.get('/:id', categorieController.getCategorieById);    // GET single category
-router.post('/', categorieController.createCategorie);       // POST create category
-router.put('/:id', categorieController.updateCategorie);     // PUT update category
-router.delete('/:id', categorieController.deleteCategorie);  // DELETE category
+// Public GET routes
+router.get('/', categorieController.getCategories);
+router.get('/:id', categorieController.getCategorieById);
+
+// ADMIN PROTECTED ROUTES
+router.post('/',
+  authenticateToken,
+  authorizedRole(['admin']),
+  categorieController.createCategorie
+);
+
+router.put('/:id',
+  authenticateToken,
+  authorizedRole(['admin']),
+  categorieController.updateCategorie
+);
+
+router.delete('/:id',
+  authenticateToken,
+  authorizedRole(['admin']),
+  categorieController.deleteCategorie
+);
 
 module.exports = router;

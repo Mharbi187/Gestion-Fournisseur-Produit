@@ -1,21 +1,44 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   nom: { type: String, required: true },
   prenom: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  motdepasse: { type: String, required: true },
-  adresse: { type: String, required: true },
-  statut: { 
+  email: { 
     type: String, 
-    enum: ['Active', 'Inactive', 'Bloqué'], 
-    default: 'Active' 
+    required: true, 
+    unique: true,
+    match: [/.+\@.+\..+/, 'Veuillez utiliser un email valide']
   },
+  mdp: { type: String, required: true, select: false },
   role: { 
     type: String, 
-    enum: ['Admin', 'User', 'Client', 'Fournisseur'], 
-    default: 'User' 
+    enum: ['admin', 'client', 'fournisseur'], 
+    default: 'client',
+    required: true
+  },
+  adresse: {
+    rue: String,
+    ville: String,
+    codePostal: String,
+    pays: String
+  },
+  statut: {
+    type: String,
+    enum: ['Actif', 'Inactif'],
+    default: 'Actif'
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-module.exports = mongoose.model('User', UserSchema);
+// Hash password before save
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('mdp')) return next();
+  this.mdp = await bcrypt.hash(this.mdp, 10);
+  next();
+});
+
+module.exports = mongoose.model('User', userSchema);

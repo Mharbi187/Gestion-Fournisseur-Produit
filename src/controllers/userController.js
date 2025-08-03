@@ -1,104 +1,145 @@
-const bcrypt = require('bcrypt');
 const User = require('../models/User');
 
-// Hash password utility
-const hashPassword = async (password) => {
-  const salt = await bcrypt.genSalt(10);
-  return await bcrypt.hash(password, salt);
-};
-
-// GET all users (exclude passwords)
+// GET all users (admin only)
 exports.getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-motdepasse');
+    const users = await User.find().select('-mdp');
     res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
   }
 };
 
-// GET single user by ID (exclude password)
+// GET single user by ID
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-motdepasse');
-    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    const user = await User.findById(req.params.id).select('-mdp');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
+    }
     res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
   }
 };
 
-// POST create user (with password hashing)
+// POST create user (admin only)
 exports.createUser = async (req, res) => {
   try {
-    const { nom, prenom, email, motdepasse, adresse, statut, role } = req.body;
+    const { nom, prenom, email, mdp, role } = req.body;
 
-    // Validation
-    if (!nom || !prenom || !email || !motdepasse || !adresse) {
-      return res.status(400).json({ message: 'Tous les champs requis doivent être fournis' });
+    // Basic validation
+    if (!nom || !prenom || !email || !mdp) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Nom, prénom, email et mot de passe sont requis' 
+      });
     }
 
     // Check for existing user
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Cet email existe déjà' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Cet email est déjà utilisé' 
+      });
     }
-
-    // Hash password
-    const hashedPassword = await hashPassword(motdepasse);
 
     // Create user
     const user = new User({
       nom,
       prenom,
       email,
-      motdepasse: hashedPassword,
-      adresse,
-      statut: statut || 'Active',
-      role: role || 'User',
+      mdp, // Will be hashed by pre-save hook
+      role: role || 'client'
     });
 
     await user.save();
 
     // Return user without password
     const userResponse = user.toObject();
-    delete userResponse.motdepasse;
-    res.status(201).json(userResponse);
+    delete userResponse.mdp;
+    
+    res.status(201).json({
+      success: true,
+      data: userResponse
+    });
 
   } catch (error) {
-    res.status(400).json({ message: 'Erreur de création', error: error.message });
+    res.status(400).json({ 
+      success: false,
+      message: 'Erreur de création', 
+      error: error.message 
+    });
   }
 };
 
-// PUT update user (exclude password updates)
+// PUT update user
 exports.updateUser = async (req, res) => {
   try {
     const { nom, prenom, adresse, statut, role } = req.body;
+    
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { nom, prenom, adresse, statut, role },
-      { new: true, runValidators: true }  // Critical options
-    ).select('-motdepasse');
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).select('-mdp');
 
     if (!updatedUser) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
     }
-    res.status(200).json(updatedUser);
+    
+    res.status(200).json({
+      success: true,
+      data: updatedUser
+    });
   } catch (error) {
     res.status(400).json({ 
+      success: false,
       message: 'Erreur de mise à jour',
       error: error.message 
     });
   }
 };
 
-// DELETE user
+// DELETE user (admin only)
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    res.status(200).json({ message: 'Utilisateur supprimé' });
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
+    }
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Utilisateur supprimé avec succès' 
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
   }
 };

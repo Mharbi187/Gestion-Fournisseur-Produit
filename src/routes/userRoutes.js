@@ -1,12 +1,36 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const { authenticateToken, authorizedRole } = require('../middleware/auth');
 
-// CRUD Routes
-router.get('/', userController.getUsers);           // GET all users
-router.get('/:id', userController.getUserById);    // GET single user
-router.post('/', userController.createUser);       // POST create user
-router.put('/:id', userController.updateUser);     // PUT update user
-router.delete('/:id', userController.deleteUser);  // DELETE user
+// ADMIN ONLY ROUTES
+router.post('/',
+  authenticateToken,
+  authorizedRole(['admin']),
+  userController.createUser
+);
+
+router.get('/',
+  authenticateToken,
+  authorizedRole(['admin']),
+  userController.getUsers
+);
+
+// PROTECTED ROUTES (Admin can access other users' profiles)
+router.get('/:id',
+  authenticateToken,
+  userController.getUserById
+);
+
+router.put('/:id',
+  authenticateToken,
+  userController.updateUser
+);
+
+router.delete('/:id',
+  authenticateToken,
+  authorizedRole(['admin']),
+  userController.deleteUser
+);
 
 module.exports = router;

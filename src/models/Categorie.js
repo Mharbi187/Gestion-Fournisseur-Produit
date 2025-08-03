@@ -1,12 +1,33 @@
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
-  nomCategorie: { type: String, required: true },
-  descriptionCategorie : { type: String, required: true },
-  typeCategorie: { type: String, required: true, enum: ['Electronics', 'Clothing', 'Food', 'Furniture'], default: 'Electronics' },
-  imageCategorie: { type: String, required: true },
-
-  
+const categorieSchema = new mongoose.Schema({
+  nom: { 
+    type: String, 
+    required: true,
+    unique: true,
+    trim: true
+  },
+  description: { 
+    type: String, 
+    required: true 
+  },
+  type: { 
+    type: String, 
+    enum: ['Electronique', 'Vêtement', 'Alimentation', 'Meuble'], 
+    default: 'Electronique',
+    required: true
+  },
+  image: { 
+    type: String, 
+    required: true 
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, { 
+  timestamps: true 
 });
 
-module.exports = mongoose.model('Categorie', userSchema);
+module.exports = mongoose.model('Categorie', categorieSchema);
