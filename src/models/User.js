@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   nom: { type: String, required: true },
@@ -34,11 +33,5 @@ const userSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Hash password before save
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('mdp')) return next();
-  this.mdp = await bcrypt.hash(this.mdp, 10);
-  next();
-});
 
 module.exports = mongoose.model('User', userSchema);

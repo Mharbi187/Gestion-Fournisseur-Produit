@@ -43,6 +43,10 @@ exports.register = async (req, res) => {
       role: 'client', // Default role
       adresse
     });
+    console.log('[DEBUG] Raw input password:', motdepasse);
+    console.log('[DEBUG] Length of input password:', motdepasse.length);
+    console.log('[DEBUG] Database hash:', user.mdp);
+    console.log('[DEBUG] Length of database hash:', user.mdp.length);
 
     await user.save();
 
