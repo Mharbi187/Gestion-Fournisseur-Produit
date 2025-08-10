@@ -17,6 +17,7 @@ router.get('/',
   authorizedRole(['admin']),
   userController.getUsers
 );
+router.get('/role', authenticateToken, userController.getUserRole);
 
 // PROTECTED ROUTES (Admin can access other users' profiles)
 router.get('/:id',

@@ -185,6 +185,29 @@ exports.login = async (req, res) => {
     });
   }
 };
+// Get user role
+exports.getUserRole = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('role');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Get user role error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 
 // GET all users (admin only)
 exports.getUsers = async (req, res) => {
