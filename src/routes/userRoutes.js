@@ -3,37 +3,41 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { authenticateToken, authorizedRole } = require('../middleware/auth');
 
+// ==============================================
+// PUBLIC ROUTES (No authentication required)
+// ==============================================
 router.post('/register', userController.register);
 router.post('/login', userController.login);
-// ADMIN ONLY ROUTES
-router.post('/',
-  authenticateToken,
-  authorizedRole(['admin']),
-  userController.createUser
+router.post('/register-admin', userController.registerAdmin); // Consider IP restriction
+
+// ==============================================
+// AUTHENTICATED ROUTES (All routes below require valid JWT)
+// ==============================================
+router.use(authenticateToken);
+
+// Role verification endpoints
+router.get('/verify-role', userController.verifyRole);
+router.get('/verify-admin-role', 
+  authorizedRole(['admin']), 
+  userController.verifyAdminRole
 );
 
-router.get('/',
-  authenticateToken,
-  authorizedRole(['admin']),
-  userController.getUsers
-);
-router.get('/role', authenticateToken, userController.getUserRole);
+// User role check
+router.get('/role', userController.getUserRole);
 
-// PROTECTED ROUTES (Admin can access other users' profiles)
-router.get('/:id',
-  authenticateToken,
-  userController.getUserById
-);
+// ==============================================
+// ADMIN-ONLY ROUTES
+// ==============================================
+router.route('/')
+  .get(authorizedRole(['admin']), userController.getUsers)
+  .post(authorizedRole(['admin']), userController.createUser);
 
-router.put('/:id',
-  authenticateToken,
-  userController.updateUser
-);
-
-router.delete('/:id',
-  authenticateToken,
-  authorizedRole(['admin']),
-  userController.deleteUser
-);
+// ==============================================
+// USER CRUD OPERATIONS
+// ==============================================
+router.route('/:id')
+  .get(userController.getUserById)       // Any authenticated user
+  .put(userController.updateUser)        // Owner or admin (add isOwnerOrAdmin middleware)
+  .delete(authorizedRole(['admin']), userController.deleteUser); // Admin only
 
 module.exports = router;

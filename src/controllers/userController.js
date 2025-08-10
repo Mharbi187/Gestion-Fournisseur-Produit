@@ -2,7 +2,8 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Register user
+
+// Register user (self-registration, always creates client)
 exports.register = async (req, res) => {
   try {
     const { nom, prenom, email, motdepasse, adresse } = req.body;
@@ -24,6 +25,14 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Password strength validation
+    if (motdepasse.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 8 caractères'
+      });
+    }
+
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -33,27 +42,23 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
+    // Create user with client role only
     const hashedPassword = await bcrypt.hash(motdepasse, 12);
     const user = new User({
       nom,
       prenom,
       email: email.toLowerCase(),
-      mdp: hashedPassword, // Store as 'mdp' in database
-      role: 'client', // Default role
+      mdp: hashedPassword,
+      role: 'client',
       adresse
     });
-    console.log('[DEBUG] Raw input password:', motdepasse);
-    console.log('[DEBUG] Length of input password:', motdepasse.length);
-    console.log('[DEBUG] Database hash:', user.mdp);
-    console.log('[DEBUG] Length of database hash:', user.mdp.length);
 
     await user.save();
 
-    // Generate JWT
+    // Generate JWT with your secret
     const token = jwt.sign(
       { userId: user._id, role: user.role, email: user.email },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'Mohamedharbiaaaa', // Fallback to your secret
       { expiresIn: '30d' }
     );
 
@@ -81,81 +86,62 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login user
-exports.login = async (req, res) => {
+// Admin registration endpoint
+exports.registerAdmin = async (req, res) => {
   try {
-    console.log('Login request body:', req.body); // Debug log
     
-    const { email, motdepasse } = req.body; // Accept 'motdepasse' from frontend
-
-    // Validate input
-    if (!email || !motdepasse) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email et mot de passe sont requis'
-      });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Format d\'email invalide'
-      });
-    }
-
-    // Find user and include password field
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+mdp');
+    const { nom, prenom, email, motdepasse, adresse, adminSecret } = req.body;
+     const receivedSecret = (adminSecret || '').toString().trim();
+    const expectedSecret = (process.env.ADMIN_SECRET || '').toString().trim();
+    console.log('Received:', JSON.stringify(receivedSecret)); // Debug
+    console.log('Expected:', JSON.stringify(expectedSecret));
     
-    if (!user) {
-      return res.status(401).json({
+    console.log('Received adminSecret:', adminSecret); // Debug log
+    console.log('Expected adminSecret:', process.env.ADMIN_SECRET);
+    // Verify admin secret
+    if (receivedSecret !== expectedSecret) {
+      return res.status(403).json({
         success: false,
-        message: 'Identifiants invalides'
+        message: 'Clé secrète admin invalide',
+        received: receivedSecret,
+        expected: expectedSecret,
+        lengthReceived: receivedSecret.length,
+        lengthExpected: expectedSecret.length
       });
     }
 
-    // Compare passwords - use 'motdepasse' from request, 'mdp' from database
-    const isPasswordValid = await bcrypt.compare(motdepasse, user.mdp);
-    
-    if (!isPasswordValid) {
-      return res.status(401).json({
+    // Check if user exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ 
         success: false,
-        message: 'Identifiants invalides'
+        message: 'Cet email existe déjà' 
       });
     }
 
-    // Check if JWT_SECRET exists
-    if (!process.env.JWT_SECRET) {
-      console.error('JWT_SECRET is not defined in environment variables');
-      return res.status(500).json({
-        success: false,
-        message: 'Configuration serveur manquante'
-      });
-    }
+    // Create admin user
+    const hashedPassword = await bcrypt.hash(motdepasse, 12);
+    const user = new User({
+      nom,
+      prenom,
+      email: email.toLowerCase(),
+      mdp: hashedPassword,
+      role: 'admin',
+      adresse
+    });
 
-    // Generate JWT token
+    await user.save();
+
+    // Generate JWT
     const token = jwt.sign(
-      { 
-        userId: user._id, 
-        role: user.role,
-        email: user.email
-      },
-      process.env.JWT_SECRET,
-      { 
-        expiresIn: '30d' 
-      }
+      { userId: user._id, role: user.role, email: user.email },
+      process.env.JWT_SECRET || 'Mohamedharbiaaaa',
+      { expiresIn: '30d' }
     );
 
-    // Update last login (optional)
-    await User.findByIdAndUpdate(user._id, { 
-      derniere_connexion: new Date() 
-    }, { new: true });
-
-    // Send success response
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      message: 'Connexion réussie',
+      message: 'Admin créé avec succès',
       token,
       user: {
         id: user._id,
@@ -168,16 +154,7 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
-    
-    // Handle specific errors
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(500).json({
-        success: false,
-        message: 'Erreur de génération du token'
-      });
-    }
-
+    console.error('Admin registration error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -185,22 +162,117 @@ exports.login = async (req, res) => {
     });
   }
 };
-// Get user role
-exports.getUserRole = async (req, res) => {
+// Verify user role (for admin dashboard)
+exports.verifyAdminRole = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('role');
+    // The auth middleware already verified the token and set req.user
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access forbidden: admin role required'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin access verified'
+    });
+
+  } catch (error) {
+    console.error('Admin verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying admin status'
+    });
+  }
+};
+// Verify user role
+exports.verifyRole = async (req, res) => {
+  try {
+    // Get user ID from authenticated request
+    const userId = req.user.userId;
+    
+    // Find user and select only the role field
+    const user = await User.findById(userId).select('role');
+    
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé'
+        message: 'User not found'
       });
     }
+    
     res.status(200).json({
       success: true,
       role: user.role
     });
+    
   } catch (error) {
-    console.error('Get user role error:', error);
+    console.error('Role verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying role',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Login user
+exports.login = async (req, res) => {
+  try {
+    const { email, motdepasse } = req.body;
+    
+    // Validate input
+    if (!email || !motdepasse) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email et mot de passe sont requis'
+      });
+    }
+
+    // Find user with password
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+mdp');
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+    
+    const isPasswordValid = await bcrypt.compare(motdepasse, user.mdp);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        role: user.role,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Return response without password
+    const userResponse = user.toObject();
+    delete userResponse.mdp;
+
+    res.json({
+      success: true,
+      token,
+      user: userResponse,
+      expiresIn: '30d'
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -209,50 +281,10 @@ exports.getUserRole = async (req, res) => {
   }
 };
 
-// GET all users (admin only)
-exports.getUsers = async (req, res) => {
-  try {
-    const users = await User.find().select('-mdp');
-    res.status(200).json({
-      success: true,
-      data: users
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false,
-      message: 'Erreur serveur', 
-      error: error.message 
-    });
-  }
-};
-
-// GET single user by ID
-exports.getUserById = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select('-mdp');
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Utilisateur non trouvé' 
-      });
-    }
-    res.status(200).json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false,
-      message: 'Erreur serveur', 
-      error: error.message 
-    });
-  }
-};
-
-// POST create user (admin only)
+// Create user (admin only)
 exports.createUser = async (req, res) => {
   try {
-    const { nom, prenom, email, mdp, role, adresse } = req.body;
+    const { nom, prenom, email, mdp, role = 'client', adresse } = req.body;
 
     // Basic validation
     if (!nom || !prenom || !email || !mdp) {
@@ -283,13 +315,13 @@ exports.createUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(mdp, 12);
 
-    // Create user
+    // Create user with specified role
     const user = new User({
       nom,
       prenom,
       email: email.toLowerCase(),
       mdp: hashedPassword,
-      role: role || 'client',
+      role,
       adresse
     });
 
@@ -314,7 +346,71 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// PUT update user
+// Get current user's role
+exports.getUserRole = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('role');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Get user role error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get all users (admin only)
+exports.getUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('-mdp');
+    res.status(200).json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
+  }
+};
+
+// Get single user by ID
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-mdp');
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
+    }
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur', 
+      error: error.message 
+    });
+  }
+};
+
+// Update user
 exports.updateUser = async (req, res) => {
   try {
     const { nom, prenom, adresse, statut, role } = req.body;
@@ -349,7 +445,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// DELETE user (admin only)
+// Delete user (admin only)
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);

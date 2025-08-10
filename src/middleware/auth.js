@@ -1,166 +1,106 @@
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
 require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_EXPIRATION = '30d';
 
-// User Registration
-exports.register = async (req, res) => {
-  try {
-    const { nom, prenom, email, mdp, role = 'client' } = req.body;
-
-    // Validate required fields
-    if (!email || !mdp) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Email et mot de passe sont requis' 
-      });
-    }
-
-    // Check for existing user
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email déjà utilisé'
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(mdp, 12);
-
-    // Create user
-    const user = new User({
-      nom,
-      prenom,
-      email,
-      mdp: hashedPassword,
-      role
-    });
-
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: TOKEN_EXPIRATION }
-    );
-
-    // Return response without password
-    const userResponse = user.toObject();
-    delete userResponse.mdp;
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: userResponse,
-      expiresIn: '30d'
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur',
-      error: error.message
-    });
-  }
-};
-
-// User Login
-exports.login = async (req, res) => {
-  try {
-    const { email, mdp } = req.body;
-
-    // Validate input
-    if (!email || !mdp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email et mot de passe sont requis'
-      });
-    }
-
-    // Find user with password
-    const user = await User.findOne({ email }).select('+mdp');
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Identifiants invalides'
-      });
-    }
-
-    // Check password
-    const isMatch = await bcrypt.compare(mdp, user.mdp);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Identifiants invalides'
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: TOKEN_EXPIRATION }
-    );
-
-    // Return response without password
-    const userResponse = user.toObject();
-    delete userResponse.mdp;
-
-    res.json({
-      success: true,
-      token,
-      user: userResponse,
-      expiresIn: '30d'
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Erreur serveur',
-      error: error.message
-    });
-  }
-};
-
-// JWT Authentication Middleware
-exports.authenticateToken = (req, res, next) => {
+/**
+ * Authentication Middleware
+ * Verifies JWT token and attaches user to request
+ */
+const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
+  console.log('[Auth] Token received:', token ? '*****' : 'none');
+  
   if (!token) {
+    console.error('[Auth] No token provided');
     return res.status(401).json({
       success: false,
-      message: 'Token manquant'
+      message: 'Token d\'authentification requis'
     });
   }
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
+      console.error('[Auth] Token verification failed:', err.message);
+      
+      if (err.name === 'TokenExpiredError') {
+        return res.status(403).json({
+          success: false,
+          message: 'Token expiré',
+          expired: true
+        });
+      }
+      
       return res.status(403).json({
         success: false,
-        message: 'Token invalide ou expiré'
+        message: 'Token invalide'
       });
     }
     
+    console.log('[Auth] Token decoded:', { 
+      userId: decoded.userId, 
+      role: decoded.role,
+      email: decoded.email 
+    });
     req.user = decoded;
     next();
   });
 };
 
-// Role Authorization Middleware
-exports.authorizedRole = (roles) => {
+/**
+ * Role Authorization Middleware
+ * @param {string[]} allowedRoles - Array of allowed roles (e.g., ['admin', 'manager'])
+ */
+const authorizedRole = (allowedRoles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
+    if (!req.user) {
+      console.error('[Auth] No user in request');
+      return res.status(401).json({
         success: false,
-        message: `Accès interdit: Rôle ${req.user.role} non autorisé`
+        message: 'Non authentifié'
       });
     }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      console.error(`[Auth] Role ${req.user.role} not authorized`);
+      return res.status(403).json({
+        success: false,
+        message: `Accès refusé. Rôles autorisés: ${allowedRoles.join(', ')}`
+      });
+    }
+
+    console.log(`[Auth] User ${req.user.userId} authorized as ${req.user.role}`);
     next();
   };
+};
+
+/**
+ * Ownership Check Middleware
+ * Verifies if user is owner of the resource or admin
+ */
+const isOwnerOrAdmin = (req, res, next) => {
+  const resourceId = req.params.id;
+  const { userId, role } = req.user;
+
+  if (role === 'admin') {
+    return next();
+  }
+
+  if (resourceId !== userId) {
+    console.error(`[Auth] User ${userId} unauthorized for resource ${resourceId}`);
+    return res.status(403).json({
+      success: false,
+      message: 'Vous ne pouvez accéder qu\'à vos propres ressources'
+    });
+  }
+
+  next();
+};
+
+module.exports = {
+  authenticateToken,
+  authorizedRole,
+  isOwnerOrAdmin
 };

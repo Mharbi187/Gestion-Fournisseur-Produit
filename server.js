@@ -22,7 +22,8 @@ const app = express();
 // CORS configuration (updated for port 5173)
 app.use(cors({
   origin: 'http://localhost:5173', // Changed to Vite default port
-  credentials: true               // Required for cookies/auth
+  credentials: true ,
+  methods: ['GET', 'POST', 'PUT', 'DELETE']             // Required for cookies/auth
 }));
 
 app.use(express.json());
@@ -30,6 +31,7 @@ app.use(express.json());
 // Connect to MongoDB
 connectDB();
 
+app.use('/api/users', userRoutes);
 // Define routes
 app.get('/', (req, res) => res.send('Backend opérationnel'));
 app.use('/api/users', userRoutes);
