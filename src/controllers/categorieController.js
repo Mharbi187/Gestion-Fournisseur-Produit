@@ -6,6 +6,7 @@ exports.getCategories = async (req, res) => {
     const categories = await Categorie.find().populate('createdBy', 'nom prenom');
     res.status(200).json({
       success: true,
+      count: categories.length,
       data: categories
     });
   } catch (error) {

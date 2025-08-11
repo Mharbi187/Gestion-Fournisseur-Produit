@@ -3,15 +3,23 @@ const Produit = require('../models/Produit');
 // GET all products (public)
 exports.getProduits = async (req, res) => {
   try {
-    const produits = await Produit.find();
+    let query = {};
+    if (req.query.category) {
+      query = { 'categorie._id': req.query.category };
+    }
+    
+    const produits = await Produit.find(query);
+    
     res.status(200).json({
       success: true,
+      count: produits.length,
       data: produits
     });
   } catch (error) {
+    console.error('Error fetching products:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Erreur serveur', 
+      message: 'Server error', 
       error: error.message 
     });
   }

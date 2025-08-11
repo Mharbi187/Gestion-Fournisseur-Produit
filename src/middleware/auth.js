@@ -42,7 +42,8 @@ const authenticateToken = (req, res, next) => {
     console.log('[Auth] Token decoded:', { 
       userId: decoded.userId, 
       role: decoded.role,
-      email: decoded.email 
+      email: decoded.email,
+      name:decoded.prenom
     });
     req.user = decoded;
     next();

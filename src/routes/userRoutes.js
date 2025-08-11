@@ -8,7 +8,8 @@ const { authenticateToken, authorizedRole } = require('../middleware/auth');
 // ==============================================
 router.post('/register', userController.register);
 router.post('/login', userController.login);
-router.post('/register-admin', userController.registerAdmin); // Consider IP restriction
+router.post('/register-admin', userController.registerAdmin);
+ // Consider IP restriction
 
 // ==============================================
 // AUTHENTICATED ROUTES (All routes below require valid JWT)
@@ -24,6 +25,8 @@ router.get('/verify-admin-role',
 
 // User role check
 router.get('/role', userController.getUserRole);
+router.get('/me', userController.getCurrentUser);
+router.put('/change-password', userController.changePassword);
 
 // ==============================================
 // ADMIN-ONLY ROUTES

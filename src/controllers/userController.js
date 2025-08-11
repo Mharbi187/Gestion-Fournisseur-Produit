@@ -57,7 +57,7 @@ exports.register = async (req, res) => {
 
     // Generate JWT with your secret
     const token = jwt.sign(
-      { userId: user._id, role: user.role, email: user.email },
+      { userId: user._id, role: user.role, email: user.email , name: user.prenom  },
       process.env.JWT_SECRET || 'Mohamedharbiaaaa', // Fallback to your secret
       { expiresIn: '30d' }
     );
@@ -249,12 +249,13 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Generate JWT token
+    // Generate JWT token with user's first name
     const token = jwt.sign(
       { 
         userId: user._id, 
         role: user.role,
-        email: user.email
+        email: user.email,
+        name: user.prenom  // Added this line to include first name
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -277,6 +278,82 @@ exports.login = async (req, res) => {
       success: false,
       message: 'Erreur serveur',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+
+// Get current user
+// In userController.js - modify getCurrentUser
+exports.getCurrentUser = async (req, res) => {
+  try {
+    console.log('Fetching user for ID:', req.user.userId); // Debug log
+    const user = await User.findById(req.user.userId).select('-mdp');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Utilisateur non trouvé' 
+      });
+    }
+    
+    // Return consistent response structure
+    res.status(200).json({
+      success: true,
+      message: 'User data retrieved successfully',
+      data: {
+        ...user.toObject(),
+        adresse: user.adresse || {
+          rue: '',
+          ville: '',
+          codePostal: '',
+          pays: ''
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in getCurrentUser:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur serveur',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Change password
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.userId).select('+mdp');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+    
+    const isMatch = await bcrypt.compare(currentPassword, user.mdp);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mot de passe actuel incorrect'
+      });
+    }
+    
+    user.mdp = await bcrypt.hash(newPassword, 12);
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Mot de passe mis à jour avec succès'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
     });
   }
 };

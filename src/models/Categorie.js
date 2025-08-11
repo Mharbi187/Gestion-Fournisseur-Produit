@@ -13,7 +13,7 @@ const categorieSchema = new mongoose.Schema({
   },
   type: { 
     type: String, 
-    enum: ['Electronique', 'Vêtement', 'Alimentation', 'Meuble'], 
+    enum: ['Electronique', 'Vêtement', 'Alimentation', 'Meuble', 'Fitness'], // Added 'Fitness'
     default: 'Electronique',
     required: true
   },
