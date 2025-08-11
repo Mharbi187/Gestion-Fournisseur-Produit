@@ -22,7 +22,7 @@ const app = express();
 // CORS configuration (updated for port 5173)
 app.use(cors({
   origin: 'http://localhost:5173', // Changed to Vite default port
-  credentials: true ,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE']             // Required for cookies/auth
 }));
 
