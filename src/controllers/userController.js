@@ -6,10 +6,10 @@ const jwt = require('jsonwebtoken');
 // Register user (self-registration, always creates client)
 exports.register = async (req, res) => {
   try {
-    const { nom, prenom, email, motdepasse, adresse } = req.body;
+    const { nom, prenom, email, mdp, adresse } = req.body;
 
     // Validate required fields
-    if (!nom || !prenom || !email || !motdepasse) {
+    if (!nom || !prenom || !email || !mdp) {
       return res.status(400).json({
         success: false,
         message: 'Nom, prénom, email et mot de passe sont requis'
@@ -26,7 +26,7 @@ exports.register = async (req, res) => {
     }
 
     // Password strength validation
-    if (motdepasse.length < 8) {
+    if (mdp.length < 8) {
       return res.status(400).json({
         success: false,
         message: 'Le mot de passe doit contenir au moins 8 caractères'
@@ -36,14 +36,14 @@ exports.register = async (req, res) => {
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Cet email existe déjà' 
+        message: 'Cet email existe déjà'
       });
     }
 
     // Create user with client role only
-    const hashedPassword = await bcrypt.hash(motdepasse, 12);
+    const hashedPassword = await bcrypt.hash(mdp, 12);
     const user = new User({
       nom,
       prenom,
@@ -57,7 +57,7 @@ exports.register = async (req, res) => {
 
     // Generate JWT with your secret
     const token = jwt.sign(
-      { userId: user._id, role: user.role, email: user.email , name: user.prenom  },
+      { userId: user._id, role: user.role, email: user.email, name: user.prenom },
       process.env.JWT_SECRET || 'Mohamedharbiaaaa', // Fallback to your secret
       { expiresIn: '30d' }
     );
@@ -89,13 +89,13 @@ exports.register = async (req, res) => {
 // Admin registration endpoint
 exports.registerAdmin = async (req, res) => {
   try {
-    
-    const { nom, prenom, email, motdepasse, adresse, adminSecret } = req.body;
-     const receivedSecret = (adminSecret || '').toString().trim();
+
+    const { nom, prenom, email, mdp, adresse, adminSecret } = req.body;
+    const receivedSecret = (adminSecret || '').toString().trim();
     const expectedSecret = (process.env.ADMIN_SECRET || '').toString().trim();
     console.log('Received:', JSON.stringify(receivedSecret)); // Debug
     console.log('Expected:', JSON.stringify(expectedSecret));
-    
+
     console.log('Received adminSecret:', adminSecret); // Debug log
     console.log('Expected adminSecret:', process.env.ADMIN_SECRET);
     // Verify admin secret
@@ -113,14 +113,14 @@ exports.registerAdmin = async (req, res) => {
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Cet email existe déjà' 
+        message: 'Cet email existe déjà'
       });
     }
 
     // Create admin user
-    const hashedPassword = await bcrypt.hash(motdepasse, 12);
+    const hashedPassword = await bcrypt.hash(mdp, 12);
     const user = new User({
       nom,
       prenom,
@@ -191,22 +191,22 @@ exports.verifyRole = async (req, res) => {
   try {
     // Get user ID from authenticated request
     const userId = req.user.userId;
-    
+
     // Find user and select only the role field
     const user = await User.findById(userId).select('role');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       role: user.role
     });
-    
+
   } catch (error) {
     console.error('Role verification error:', error);
     res.status(500).json({
@@ -220,10 +220,10 @@ exports.verifyRole = async (req, res) => {
 // Login user
 exports.login = async (req, res) => {
   try {
-    const { email, motdepasse } = req.body;
-    
+    const { email, mdp } = req.body;
+
     // Validate input
-    if (!email || !motdepasse) {
+    if (!email || !mdp) {
       return res.status(400).json({
         success: false,
         message: 'Email et mot de passe sont requis'
@@ -232,15 +232,15 @@ exports.login = async (req, res) => {
 
     // Find user with password
     const user = await User.findOne({ email: email.toLowerCase() }).select('+mdp');
-    
+
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Identifiants invalides'
       });
     }
-    
-    const isPasswordValid = await bcrypt.compare(motdepasse, user.mdp);
+
+    const isPasswordValid = await bcrypt.compare(mdp, user.mdp);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -251,8 +251,8 @@ exports.login = async (req, res) => {
 
     // Generate JWT token with user's first name
     const token = jwt.sign(
-      { 
-        userId: user._id, 
+      {
+        userId: user._id,
         role: user.role,
         email: user.email,
         name: user.prenom  // Added this line to include first name
@@ -289,14 +289,14 @@ exports.getCurrentUser = async (req, res) => {
   try {
     console.log('Fetching user for ID:', req.user.userId); // Debug log
     const user = await User.findById(req.user.userId).select('-mdp');
-    
+
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé' 
+        message: 'Utilisateur non trouvé'
       });
     }
-    
+
     // Return consistent response structure
     res.status(200).json({
       success: true,
@@ -313,7 +313,7 @@ exports.getCurrentUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in getCurrentUser:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'Erreur serveur',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -326,14 +326,14 @@ exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.user.userId).select('+mdp');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'Utilisateur non trouvé'
       });
     }
-    
+
     const isMatch = await bcrypt.compare(currentPassword, user.mdp);
     if (!isMatch) {
       return res.status(400).json({
@@ -341,10 +341,10 @@ exports.changePassword = async (req, res) => {
         message: 'Mot de passe actuel incorrect'
       });
     }
-    
+
     user.mdp = await bcrypt.hash(newPassword, 12);
     await user.save();
-    
+
     res.status(200).json({
       success: true,
       message: 'Mot de passe mis à jour avec succès'
@@ -365,9 +365,9 @@ exports.createUser = async (req, res) => {
 
     // Basic validation
     if (!nom || !prenom || !email || !mdp) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Nom, prénom, email et mot de passe sont requis' 
+        message: 'Nom, prénom, email et mot de passe sont requis'
       });
     }
 
@@ -383,9 +383,9 @@ exports.createUser = async (req, res) => {
     // Check for existing user
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Cet email est déjà utilisé' 
+        message: 'Cet email est déjà utilisé'
       });
     }
 
@@ -407,7 +407,7 @@ exports.createUser = async (req, res) => {
     // Return user without password
     const userResponse = user.toObject();
     delete userResponse.mdp;
-    
+
     res.status(201).json({
       success: true,
       message: 'Utilisateur créé avec succès',
@@ -415,10 +415,10 @@ exports.createUser = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
-      message: 'Erreur de création', 
-      error: error.message 
+      message: 'Erreur de création',
+      error: error.message
     });
   }
 };
@@ -456,10 +456,10 @@ exports.getUsers = async (req, res) => {
       data: users
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Erreur serveur', 
-      error: error.message 
+      message: 'Erreur serveur',
+      error: error.message
     });
   }
 };
@@ -469,9 +469,9 @@ exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-mdp');
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé' 
+        message: 'Utilisateur non trouvé'
       });
     }
     res.status(200).json({
@@ -479,10 +479,10 @@ exports.getUserById = async (req, res) => {
       data: user
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Erreur serveur', 
-      error: error.message 
+      message: 'Erreur serveur',
+      error: error.message
     });
   }
 };
@@ -491,33 +491,33 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { nom, prenom, adresse, statut, role } = req.body;
-    
+
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { nom, prenom, adresse, statut, role },
-      { 
+      {
         new: true,
         runValidators: true
       }
     ).select('-mdp');
 
     if (!updatedUser) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé' 
+        message: 'Utilisateur non trouvé'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       message: 'Utilisateur mis à jour avec succès',
       data: updatedUser
     });
   } catch (error) {
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
       message: 'Erreur de mise à jour',
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -526,23 +526,23 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
-    
+
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Utilisateur non trouvé' 
+        message: 'Utilisateur non trouvé'
       });
     }
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Utilisateur supprimé avec succès' 
+      message: 'Utilisateur supprimé avec succès'
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Erreur serveur', 
-      error: error.message 
+      message: 'Erreur serveur',
+      error: error.message
     });
   }
 };
