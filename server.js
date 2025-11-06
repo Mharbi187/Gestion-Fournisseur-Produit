@@ -31,7 +31,6 @@ app.use(express.json());
 // Connect to MongoDB
 connectDB();
 
-app.use('/api/users', userRoutes);
 // Define routes
 app.get('/', (req, res) => res.send('Backend opérationnel'));
 app.use('/api/users', userRoutes);

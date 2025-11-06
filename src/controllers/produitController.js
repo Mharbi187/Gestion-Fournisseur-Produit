@@ -3,6 +3,7 @@ const Produit = require('../models/Produit');
 // GET all products (public)
 exports.getProduits = async (req, res) => {
   try {
+    console.log("skdsqjdsqd");
     let query = {};
     if (req.query.category) {
       query = { 'categorie._id': req.query.category };

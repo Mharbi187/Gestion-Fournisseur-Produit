@@ -404,14 +404,27 @@ exports.createUser = async (req, res) => {
 
     await user.save();
 
-    // Return user without password
+    // Return user without password and include a JWT for the created user
     const userResponse = user.toObject();
     delete userResponse.mdp;
-    
+
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        role: user.role,
+        email: user.email,
+        name: user.prenom
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
     res.status(201).json({
       success: true,
       message: 'Utilisateur créé avec succès',
-      data: userResponse
+      data: userResponse,
+      token,
+      expiresIn: '30d'
     });
 
   } catch (error) {
