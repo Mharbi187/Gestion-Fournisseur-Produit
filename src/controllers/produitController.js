@@ -3,13 +3,12 @@ const Produit = require('../models/Produit');
 // GET all products (public)
 exports.getProduits = async (req, res) => {
   try {
-    console.log("skdsqjdsqd");
     let query = {};
     if (req.query.category) {
-      query = { 'categorie._id': req.query.category };
+      query = { categorie: req.query.category };
     }
     
-    const produits = await Produit.find(query);
+    const produits = await Produit.find(query).populate('categorie', 'nom _id');
     
     res.status(200).json({
       success: true,
