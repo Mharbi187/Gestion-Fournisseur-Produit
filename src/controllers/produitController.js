@@ -1,18 +1,93 @@
 const Produit = require('../models/Produit');
 
-// GET all products (public)
+// GET all products with pagination, filtering, sorting, and search (public)
 exports.getProduits = async (req, res) => {
   try {
+    const {
+      page = 1,
+      limit = 12,
+      category,
+      search,
+      sort = 'createdAt',
+      order = 'desc',
+      minPrice,
+      maxPrice
+    } = req.query;
+
+    // Build query
     let query = {};
-    if (req.query.category) {
-      query = { categorie: req.query.category };
+    
+    // Category filter
+    if (category && category !== 'all') {
+      query.categorie = category;
     }
     
-    const produits = await Produit.find(query).populate('categorie', 'nom _id');
+    // Search filter (name or description)
+    if (search) {
+      query.$or = [
+        { nom: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Price range filter
+    if (minPrice || maxPrice) {
+      query.prix = {};
+      if (minPrice) query.prix.$gte = Number(minPrice);
+      if (maxPrice) query.prix.$lte = Number(maxPrice);
+    }
+
+    // Build sort object
+    const sortOptions = {};
+    switch (sort) {
+      case 'price-low':
+        sortOptions.prix = 1;
+        break;
+      case 'price-high':
+        sortOptions.prix = -1;
+        break;
+      case 'name-az':
+        sortOptions.nom = 1;
+        break;
+      case 'name-za':
+        sortOptions.nom = -1;
+        break;
+      case 'newest':
+        sortOptions.createdAt = -1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count for pagination info
+    const total = await Produit.countDocuments(query);
+    
+    // Fetch products with pagination
+    const produits = await Produit.find(query)
+      .populate('categorie', 'nom _id')
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(total / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
     
     res.status(200).json({
       success: true,
       count: produits.length,
+      total,
+      page: pageNum,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
       data: produits
     });
   } catch (error) {
