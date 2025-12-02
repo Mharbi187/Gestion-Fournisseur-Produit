@@ -21,7 +21,8 @@ async function sendOTPEmail(to, otp, purpose = 'verification') {
     }
     
     const resend = new Resend(apiKey);
-    const from = process.env.FROM_EMAIL || 'LIVRINI <onboarding@resend.dev>';
+    // MUST use Resend's default sender OR a verified domain
+    const from = 'LIVRINI <onboarding@resend.dev>';
     const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
     
     console.log('📧 Using Resend API');
@@ -104,7 +105,8 @@ async function sendWelcomeEmail(to, firstName = '') {
     }
     
     const resend = new Resend(apiKey);
-    const from = process.env.FROM_EMAIL || 'LIVRINI <onboarding@resend.dev>';
+    // MUST use Resend's default sender OR a verified domain
+    const from = 'LIVRINI <onboarding@resend.dev>';
     
     const { data, error } = await resend.emails.send({
       from,
