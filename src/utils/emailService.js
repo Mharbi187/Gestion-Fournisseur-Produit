@@ -1,5 +1,3 @@
-const nodemailer = require('nodemailer');
-
 // Generate a 6-digit numeric OTP
 function generateOTP(length = 6) {
   const min = Math.pow(10, length - 1);
@@ -15,8 +13,8 @@ async function sendOTPEmail(to, otp, purpose = 'verification') {
     const apiKey = process.env.BREVO_API_KEY;
     
     if (!apiKey) {
-      console.log('⚠️ BREVO_API_KEY not set, falling back to Ethereal for testing');
-      return await sendOTPEmailFallback(to, otp, purpose);
+      console.log('⚠️ BREVO_API_KEY not set, email not sent');
+      return { info: null };
     }
     
     const SibApiV3Sdk = require('@getbrevo/brevo');
@@ -61,42 +59,6 @@ async function sendOTPEmail(to, otp, purpose = 'verification') {
     console.error('❌ Full error:', err.response?.body || err);
     throw err;
   }
-}
-
-// Fallback using Ethereal for development/testing
-async function sendOTPEmailFallback(to, otp, purpose = 'verification') {
-  const testAccount = await nodemailer.createTestAccount();
-  const transporter = nodemailer.createTransport({
-    host: testAccount.smtp.host,
-    port: testAccount.smtp.port,
-    secure: testAccount.smtp.secure,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass
-    }
-  });
-  
-  const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
-  const html = `
-    <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
-      <p>Bonjour,</p>
-      <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> pour LIVRINI :</p>
-      <p style="font-size:22px;font-weight:700;margin:12px 0;">${otp}</p>
-      <p>Ce code expire dans 10 minutes.</p>
-      <p>Merci,<br/>L'équipe LIVRINI</p>
-    </div>
-  `;
-  
-  const info = await transporter.sendMail({
-    from: 'LIVRINI <test@ethereal.email>',
-    to,
-    subject,
-    html
-  });
-  
-  const previewUrl = nodemailer.getTestMessageUrl(info);
-  console.log('📧 Ethereal preview URL:', previewUrl);
-  return { previewUrl, info };
 }
 
 // Send welcome email
