@@ -53,8 +53,12 @@ exports.register = async (req, res) => {
         existingUser.prenom = prenom;
         await existingUser.save();
         
-        const mailRes = await sendOTPEmail(email, otp, 'verification');
-        if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resend existing user):', mailRes.previewUrl);
+        try {
+          const mailRes = await sendOTPEmail(email, otp, 'verification');
+          if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resend existing user):', mailRes.previewUrl);
+        } catch (emailError) {
+          console.error('Email sending failed (non-fatal):', emailError.message);
+        }
         
         return res.status(200).json({
           success: true,
@@ -92,9 +96,14 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Send OTP email
-    const mailRes = await sendOTPEmail(email, otp, 'verification');
-    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (register):', mailRes.previewUrl);
+    // Send OTP email (don't fail registration if email fails)
+    try {
+      const mailRes = await sendOTPEmail(email, otp, 'verification');
+      if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (register):', mailRes.previewUrl);
+    } catch (emailError) {
+      console.error('Email sending failed (non-fatal):', emailError.message);
+      // Continue with registration - user can request resend
+    }
 
     res.status(201).json({
       success: true,
