@@ -28,6 +28,19 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['Actif', 'Inactif'],
     default: 'Actif'
+  },
+  // OTP fields for email verification
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  otp: {
+    code: String,
+    expiresAt: Date,
+    purpose: {
+      type: String,
+      enum: ['verification', 'reset']
+    }
   }
 }, { 
   timestamps: true,

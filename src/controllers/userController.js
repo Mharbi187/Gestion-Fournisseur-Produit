@@ -1,6 +1,10 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { generateOTP, sendOTPEmail, sendWelcomeEmail } = require('../utils/emailService');
+
+// OTP expiry time (10 minutes)
+const OTP_EXPIRY_MINUTES = 10;
 
 
 // Register user (self-registration, always creates client)
@@ -36,13 +40,40 @@ exports.register = async (req, res) => {
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
+      // If user exists but not verified, allow re-registration with new OTP
+      if (!existingUser.isVerified) {
+        const otp = generateOTP();
+        existingUser.otp = {
+          code: otp,
+          expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+          purpose: 'verification'
+        };
+        existingUser.mdp = await bcrypt.hash(motdepasse, 12);
+        existingUser.nom = nom;
+        existingUser.prenom = prenom;
+        await existingUser.save();
+        
+        const mailRes = await sendOTPEmail(email, otp, 'verification');
+        if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resend existing user):', mailRes.previewUrl);
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Un nouveau code de vérification a été envoyé à votre email',
+          requiresVerification: true,
+          email: email.toLowerCase()
+        });
+      }
+      
       return res.status(400).json({ 
         success: false,
         message: 'Cet email existe déjà' 
       });
     }
 
-    // Create user with client role only
+    // Generate OTP
+    const otp = generateOTP();
+
+    // Create user with client role only (unverified)
     const hashedPassword = await bcrypt.hash(motdepasse, 12);
     const user = new User({
       nom,
@@ -50,21 +81,121 @@ exports.register = async (req, res) => {
       email: email.toLowerCase(),
       mdp: hashedPassword,
       role: 'client',
-      adresse
+      adresse,
+      isVerified: false,
+      otp: {
+        code: otp,
+        expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+        purpose: 'verification'
+      }
     });
 
     await user.save();
 
-    // Generate JWT with your secret
-    const token = jwt.sign(
-      { userId: user._id, role: user.role, email: user.email , name: user.prenom  },
-      process.env.JWT_SECRET || 'Mohamedharbiaaaa', // Fallback to your secret
-      { expiresIn: '30d' }
-    );
+    // Send OTP email
+    const mailRes = await sendOTPEmail(email, otp, 'verification');
+    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (register):', mailRes.previewUrl);
 
     res.status(201).json({
       success: true,
-      message: 'Inscription réussie',
+      message: 'Code de vérification envoyé à votre email',
+      requiresVerification: true,
+      email: email.toLowerCase()
+    });
+
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(400).json({
+      success: false,
+      message: 'Erreur de création',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Verify OTP and complete registration
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email et code OTP sont requis'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    if (user.isVerified && user.otp?.purpose !== 'reset') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ce compte est déjà vérifié'
+      });
+    }
+
+    // Check OTP
+    if (!user.otp || !user.otp.code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucun code OTP en attente. Veuillez vous réinscrire.'
+      });
+    }
+
+    if (user.otp.code !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code OTP invalide'
+      });
+    }
+
+    if (new Date() > user.otp.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code OTP expiré. Veuillez en demander un nouveau.'
+      });
+    }
+
+    // If this is for password reset
+    if (user.otp.purpose === 'reset') {
+      return res.status(200).json({
+        success: true,
+        message: 'Code vérifié. Vous pouvez maintenant réinitialiser votre mot de passe.',
+        canResetPassword: true,
+        email: user.email
+      });
+    }
+
+    // Mark as verified
+    user.isVerified = true;
+    user.otp = undefined;
+    await user.save();
+
+    // Send welcome email
+    try {
+      const welcomeRes = await sendWelcomeEmail(user.email, user.prenom);
+      if (welcomeRes && welcomeRes.previewUrl) console.log('Welcome email preview URL:', welcomeRes.previewUrl);
+    } catch (e) {
+      console.error('Error sending welcome email (non-fatal):', e);
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user._id, role: user.role, email: user.email, name: user.prenom },
+      process.env.JWT_SECRET || 'Mohamedharbiaaaa',
+      { expiresIn: '30d' }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Compte vérifié avec succès!',
       token,
       user: {
         id: user._id,
@@ -77,10 +208,188 @@ exports.register = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(400).json({
+    console.error('OTP verification error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Erreur de création',
+      message: 'Erreur de vérification',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Resend OTP
+exports.resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email requis'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    if (user.isVerified && !user.otp?.purpose) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ce compte est déjà vérifié'
+      });
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    const purpose = user.otp?.purpose || 'verification';
+    
+    user.otp = {
+      code: otp,
+      expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+      purpose
+    };
+    await user.save();
+
+    // Send OTP email
+    const mailRes = await sendOTPEmail(email, otp, purpose);
+    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resendOTP):', mailRes.previewUrl);
+
+    res.status(200).json({
+      success: true,
+      message: 'Nouveau code envoyé à votre email'
+    });
+
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'envoi du code',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Forgot password - request OTP
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email requis'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Don't reveal if email exists
+      return res.status(200).json({
+        success: true,
+        message: 'Si cet email existe, un code de réinitialisation sera envoyé'
+      });
+    }
+
+    // Generate OTP for password reset
+    const otp = generateOTP();
+    user.otp = {
+      code: otp,
+      expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+      purpose: 'reset'
+    };
+    await user.save();
+
+    // Send OTP email
+    const mailRes = await sendOTPEmail(email, otp, 'reset');
+    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (forgotPassword):', mailRes.previewUrl);
+
+    res.status(200).json({
+      success: true,
+      message: 'Code de réinitialisation envoyé à votre email'
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Reset password with OTP
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, code OTP et nouveau mot de passe sont requis'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 8 caractères'
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    // Check OTP
+    if (!user.otp || user.otp.purpose !== 'reset') {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune demande de réinitialisation en cours'
+      });
+    }
+
+    if (user.otp.code !== otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code OTP invalide'
+      });
+    }
+
+    if (new Date() > user.otp.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code OTP expiré'
+      });
+    }
+
+    // Update password
+    user.mdp = await bcrypt.hash(newPassword, 12);
+    user.otp = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

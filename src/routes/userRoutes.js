@@ -9,7 +9,12 @@ const { authenticateToken, authorizedRole } = require('../middleware/auth');
 router.post('/register', userController.register);
 router.post('/login', userController.login);
 router.post('/register-admin', userController.registerAdmin);
- // Consider IP restriction
+
+// OTP Routes (Public)
+router.post('/verify-otp', userController.verifyOTP);
+router.post('/resend-otp', userController.resendOTP);
+router.post('/forgot-password', userController.forgotPassword);
+router.post('/reset-password', userController.resetPassword);
 
 // ==============================================
 // AUTHENTICATED ROUTES (All routes below require valid JWT)
