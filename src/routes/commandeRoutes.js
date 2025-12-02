@@ -30,6 +30,13 @@ router.get('/',
   commandeController.getAllCommandes
 );
 
+// ADMIN: Sync livraisons for all commandes
+router.post('/sync-livraisons',
+  authenticateToken,
+  authorizedRole(['admin']),
+  commandeController.syncLivraisons
+);
+
 // Keep your existing routes for other operations
 router.get('/:id',
   authenticateToken,
