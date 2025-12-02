@@ -13,14 +13,29 @@ async function createTransporter() {
   const pass = process.env.SMTP_PASS;
 
   if (user && pass) {
-    // Use Gmail service for simplicity
-    return nodemailer.createTransport({
-      service: 'gmail',
+    // Use Gmail with explicit settings
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // use TLS
       auth: {
         user,
         pass
-      }
+      },
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000,
+      socketTimeout: 10000
     });
+    
+    // Verify connection
+    try {
+      await transporter.verify();
+      console.log('✅ SMTP connection verified successfully');
+    } catch (verifyErr) {
+      console.error('❌ SMTP verification failed:', verifyErr.message);
+    }
+    
+    return transporter;
   }
 
   // Fallback to Ethereal for development/testing
@@ -54,6 +69,8 @@ async function sendOTPEmail(to, otp, purpose = 'verification') {
     console.log('📧 From:', from);
     console.log('📧 To:', to);
     console.log('📧 Subject:', subject);
+    console.log('📧 Sending email...');
+    
     const html = `
       <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
         <p>Bonjour,</p>
