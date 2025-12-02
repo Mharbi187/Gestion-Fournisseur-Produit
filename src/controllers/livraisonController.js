@@ -21,17 +21,43 @@ exports.getLivraisons = async (req, res) => {
 // CLIENT: Get client's deliveries (from document)
 exports.getClientLivraisons = async (req, res) => {
   try {
-    // First get client's orders
-    const commandes = await Commande.find({ client: req.user.userId });
-    const commandeIds = commandes.map(c => c._id);
+    // Get livraisons directly by client ID
+    let livraisons = await Livraison.find({ client: req.user.userId })
+      .populate('commande')
+      .sort({ createdAt: -1 });
     
-    // Then get deliveries for these orders
-    const livraisons = await Livraison.find({ commande: { $in: commandeIds } })
-      .sort({ dateExpedition: -1 });
+    // If no livraisons found by client, try via commandes
+    if (livraisons.length === 0) {
+      const commandes = await Commande.find({ client: req.user.userId });
+      const commandeIds = commandes.map(c => c._id);
+      
+      livraisons = await Livraison.find({ commande: { $in: commandeIds } })
+        .populate('commande')
+        .sort({ createdAt: -1 });
+    }
+    
+    // Transform data to include all needed fields
+    const enrichedLivraisons = livraisons.map(l => ({
+      _id: l._id,
+      id: l._id,
+      commande: l.commande?._id || l.commande,
+      numeroCommande: l.commande?.numeroCommande,
+      statut: l.statutLivraison,
+      status: l.statutLivraison,
+      adresse: l.adresse || l.commande?.adresseLivraison || '-',
+      address: l.adresse || l.commande?.adresseLivraison || '-',
+      montant: l.commande?.montantTotal || 0,
+      dateExpedition: l.dateExpedition,
+      dateLivraisonPrevue: l.dateLivraisonPrevue,
+      dateLivraisonEffective: l.dateLivraisonEffective,
+      transporteur: l.transporteur || 'LIVRINI Express',
+      createdAt: l.createdAt,
+      updatedAt: l.updatedAt
+    }));
     
     res.status(200).json({
       success: true,
-      data: livraisons
+      data: enrichedLivraisons
     });
   } catch (error) {
     res.status(500).json({
