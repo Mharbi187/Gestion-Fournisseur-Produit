@@ -113,11 +113,12 @@ exports.register = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Register error:', error);
+    console.error('Register error:', error.message);
+    console.error('Register error stack:', error.stack);
     res.status(400).json({
       success: false,
       message: 'Erreur de création',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message
     });
   }
 };

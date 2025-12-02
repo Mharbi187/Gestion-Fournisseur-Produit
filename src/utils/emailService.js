@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const { Resend } = require('resend');
 
 // Generate a 6-digit numeric OTP
 function generateOTP(length = 6) {
@@ -8,52 +7,58 @@ function generateOTP(length = 6) {
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
-// Send OTP email using Resend API (works on Render free tier)
+// Send OTP email using Brevo API (free tier allows any recipient)
 async function sendOTPEmail(to, otp, purpose = 'verification') {
   try {
     console.log('📧 sendOTPEmail called for:', to);
     
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = process.env.BREVO_API_KEY;
     
     if (!apiKey) {
-      console.log('⚠️ RESEND_API_KEY not set, falling back to Ethereal for testing');
+      console.log('⚠️ BREVO_API_KEY not set, falling back to Ethereal for testing');
       return await sendOTPEmailFallback(to, otp, purpose);
     }
     
-    const resend = new Resend(apiKey);
-    // MUST use Resend's default sender OR a verified domain
-    const from = 'LIVRINI <onboarding@resend.dev>';
-    const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
+    const SibApiV3Sdk = require('@getbrevo/brevo');
+    const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+    apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, apiKey);
     
-    console.log('📧 Using Resend API');
-    console.log('📧 From:', from);
+    const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'noreply@livrini.com';
+    
+    console.log('📧 Using Brevo API');
+    console.log('📧 From:', senderEmail);
     console.log('📧 To:', to);
     
-    const { data, error } = await resend.emails.send({
-      from,
-      to: [to],
-      subject,
-      html: `
-        <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
-          <p>Bonjour,</p>
-          <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> pour LIVRINI :</p>
-          <p style="font-size:22px;font-weight:700;margin:12px 0;">${otp}</p>
-          <p>Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, ignorez ce message.</p>
-          <p>Merci,<br/>L'équipe LIVRINI</p>
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = `
+      <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;max-width:600px;margin:0 auto;padding:20px;">
+        <div style="text-align:center;margin-bottom:30px;">
+          <h1 style="color:#059669;margin:0;">LIVRINI</h1>
         </div>
-      `
-    });
+        <p>Bonjour,</p>
+        <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> :</p>
+        <div style="background:#f0fdf4;border:2px solid #059669;border-radius:10px;padding:20px;text-align:center;margin:20px 0;">
+          <p style="font-size:32px;font-weight:700;margin:0;letter-spacing:8px;color:#059669;">${otp}</p>
+        </div>
+        <p style="color:#666;">Ce code expire dans <strong>10 minutes</strong>.</p>
+        <p style="color:#666;">Si vous n'avez pas demandé ce code, ignorez ce message.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:30px 0;">
+        <p style="color:#999;font-size:12px;text-align:center;">L'équipe LIVRINI</p>
+      </div>
+    `;
+    sendSmtpEmail.sender = { name: 'LIVRINI', email: senderEmail };
+    sendSmtpEmail.to = [{ email: to }];
     
-    if (error) {
-      console.error('❌ Resend error:', error);
-      throw new Error(error.message);
-    }
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
     
-    console.log('✅ Email sent successfully! ID:', data.id);
-    return { info: data };
+    console.log('✅ Email sent successfully! MessageId:', result.messageId);
+    return { info: result };
     
   } catch (err) {
     console.error('❌ sendOTPEmail error:', err.message);
+    console.error('❌ Full error:', err.response?.body || err);
     throw err;
   }
 }
@@ -97,37 +102,40 @@ async function sendOTPEmailFallback(to, otp, purpose = 'verification') {
 // Send welcome email
 async function sendWelcomeEmail(to, firstName = '') {
   try {
-    const apiKey = process.env.RESEND_API_KEY;
+    const apiKey = process.env.BREVO_API_KEY;
     
     if (!apiKey) {
-      console.log('⚠️ RESEND_API_KEY not set, skipping welcome email');
+      console.log('⚠️ BREVO_API_KEY not set, skipping welcome email');
       return { info: null };
     }
     
-    const resend = new Resend(apiKey);
-    // MUST use Resend's default sender OR a verified domain
-    const from = 'LIVRINI <onboarding@resend.dev>';
+    const SibApiV3Sdk = require('@getbrevo/brevo');
+    const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+    apiInstance.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, apiKey);
     
-    const { data, error } = await resend.emails.send({
-      from,
-      to: [to],
-      subject: 'Bienvenue sur LIVRINI',
-      html: `
-        <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
-          <p>Bonjour ${firstName || ''},</p>
-          <p>Bienvenue sur LIVRINI ! Nous sommes ravis de vous compter parmi nos utilisateurs.</p>
-          <p>Bon shopping,<br/>L'équipe LIVRINI</p>
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'noreply@livrini.com';
+    
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.subject = 'Bienvenue sur LIVRINI';
+    sendSmtpEmail.htmlContent = `
+      <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;max-width:600px;margin:0 auto;padding:20px;">
+        <div style="text-align:center;margin-bottom:30px;">
+          <h1 style="color:#059669;margin:0;">LIVRINI</h1>
         </div>
-      `
-    });
+        <p>Bonjour ${firstName || ''},</p>
+        <p>Bienvenue sur <strong>LIVRINI</strong> ! Nous sommes ravis de vous compter parmi nos utilisateurs.</p>
+        <p>Vous pouvez maintenant profiter de tous nos services de livraison.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:30px 0;">
+        <p style="color:#999;font-size:12px;text-align:center;">Bon shopping,<br/>L'équipe LIVRINI</p>
+      </div>
+    `;
+    sendSmtpEmail.sender = { name: 'LIVRINI', email: senderEmail };
+    sendSmtpEmail.to = [{ email: to }];
     
-    if (error) {
-      console.error('❌ Welcome email error:', error);
-      return { info: null };
-    }
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
     
-    console.log('✅ Welcome email sent! ID:', data.id);
-    return { info: data };
+    console.log('✅ Welcome email sent! ID:', result.messageId);
+    return { info: result };
     
   } catch (err) {
     console.error('sendWelcomeEmail error:', err.message);
