@@ -158,19 +158,39 @@ exports.getCommandeById = async (req, res) => {
 
 exports.updateStatutCommande = async (req, res) => {
   try {
-    const { statutCommande } = req.body;
-    const commande = await Commande.findOneAndUpdate(
-      { numeroCommande: req.params.id },
-      { statutCommande },
-      { new: true, runValidators: true }
-    );
-
+    // Accept both status and statutCommande, and map English to French
+    let statutCommande = req.body.statutCommande || req.body.status;
+    
+    // Map English status to French
+    const englishToFrench = {
+      'Processing': 'en_preparation',
+      'Shipped': 'expediee',
+      'Delivered': 'livree',
+      'Cancelled': 'annulee',
+      'Pending': 'en_attente',
+      'Confirmed': 'confirmee'
+    };
+    
+    if (englishToFrench[statutCommande]) {
+      statutCommande = englishToFrench[statutCommande];
+    }
+    
+    // Try to find by _id first, then by numeroCommande
+    let commande = await Commande.findById(req.params.id);
+    if (!commande) {
+      commande = await Commande.findOne({ numeroCommande: req.params.id });
+    }
+    
     if (!commande) {
       return res.status(404).json({ 
         success: false,
         message: 'Commande non trouvée' 
       });
     }
+    
+    // Update the status
+    commande.statutCommande = statutCommande;
+    await commande.save();
     
     // Update livraison status based on order status
     const statusMap = {
