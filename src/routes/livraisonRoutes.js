@@ -36,6 +36,13 @@ router.post('/',
   livraisonController.createLivraison
 );
 
+// ADMIN/FOURNISSEUR: Update delivery status
+router.put('/:id',
+  authenticateToken,
+  authorizedRole(['admin', 'fournisseur']),
+  livraisonController.updateLivraison
+);
+
 router.delete('/:id',
   authenticateToken,
   authorizedRole(['admin']), // Assuming only admin can delete deliveries

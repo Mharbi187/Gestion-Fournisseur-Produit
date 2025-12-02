@@ -118,6 +118,47 @@ exports.createLivraison = async (req, res) => {
   }
 };
 
+// ADMIN/FOURNISSEUR: Update delivery status
+exports.updateLivraison = async (req, res) => {
+  try {
+    const { statutLivraison, notesLivreur, dateLivraisonPrevue } = req.body;
+    
+    const updateData = {};
+    if (statutLivraison) updateData.statutLivraison = statutLivraison;
+    if (notesLivreur) updateData.notesLivreur = notesLivreur;
+    if (dateLivraisonPrevue) updateData.dateLivraisonPrevue = dateLivraisonPrevue;
+    
+    // If marking as delivered, set effective date
+    if (statutLivraison === 'Livrée') {
+      updateData.dateLivraisonEffective = Date.now();
+    }
+    
+    const livraison = await Livraison.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!livraison) {
+      return res.status(404).json({
+        success: false,
+        message: 'Livraison non trouvée'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: livraison
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: 'Erreur de mise à jour',
+      error: error.message
+    });
+  }
+};
+
 exports.deleteLivraison = async (req, res) => {
   try {
     const livraison = await Livraison.findByIdAndDelete(req.params.id);
