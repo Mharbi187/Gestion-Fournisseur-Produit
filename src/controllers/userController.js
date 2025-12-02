@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTPEmail, sendWelcomeEmail } = require('../utils/emailService');
@@ -188,6 +189,18 @@ exports.verifyOTP = async (req, res) => {
       await sendWelcomeEmail(user.email, user.prenom);
     } catch (e) {
       // Welcome email failed but verification continues
+    }
+
+    // Create welcome notification
+    try {
+      await Notification.createForUser(user._id, {
+        type: 'info',
+        title: '🎉 Bienvenue sur LIVRINI!',
+        message: `Bonjour ${user.prenom}! Votre compte a été vérifié avec succès. Découvrez nos produits et profitez de nos offres.`,
+        link: '/products'
+      });
+    } catch (e) {
+      // Notification failed but continues
     }
 
     // Generate JWT

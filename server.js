@@ -10,6 +10,7 @@ const alerteStockRoutes = require('./src/routes/alerteStockRoutes');
 const categorieRoutes = require('./src/routes/categorieRoutes');
 const ligneCommandeRoutes = require('./src/routes/ligneCommandeRoutes');
 const rapportRoutes = require('./src/routes/rapportRoutes');
+const notificationRoutes = require('./src/routes/notificationRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -40,6 +41,7 @@ app.use('/api/alertes-stock', alerteStockRoutes);
 app.use('/api/categories', categorieRoutes);
 app.use('/api/ligne-commande', ligneCommandeRoutes);
 app.use('/api/rapports', rapportRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;

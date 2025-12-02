@@ -88,5 +88,8 @@ const isOwnerOrAdmin = (req, res, next) => {
 module.exports = {
   authenticateToken,
   authorizedRole,
-  isOwnerOrAdmin
+  isOwnerOrAdmin,
+  // Aliases for convenience
+  protect: authenticateToken,
+  isAdmin: authorizedRole(['admin'])
 };
