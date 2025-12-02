@@ -13,8 +13,10 @@ const rapportRoutes = require('./src/routes/rapportRoutes');
 
 // Load environment variables
 dotenv.config();
-console.log('PORT from .env:', process.env.PORT);
-console.log('MONGODB_URI from .env:', process.env.MONGODB_URI);
+console.log('PORT:', process.env.PORT);
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'configured' : 'NOT SET');
+console.log('SMTP_USER:', process.env.SMTP_USER ? 'configured' : 'NOT SET');
+console.log('SMTP_PASS:', process.env.SMTP_PASS ? 'configured' : 'NOT SET');
 
 // Initialize Express app
 const app = express();
