@@ -54,10 +54,9 @@ exports.register = async (req, res) => {
         await existingUser.save();
         
         try {
-          const mailRes = await sendOTPEmail(email, otp, 'verification');
-          if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resend existing user):', mailRes.previewUrl);
+          await sendOTPEmail(email, otp, 'verification');
         } catch (emailError) {
-          console.error('Email sending failed (non-fatal):', emailError.message);
+          // Email failed but registration continues
         }
         
         return res.status(200).json({
@@ -98,11 +97,9 @@ exports.register = async (req, res) => {
 
     // Send OTP email (don't fail registration if email fails)
     try {
-      const mailRes = await sendOTPEmail(email, otp, 'verification');
-      if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (register):', mailRes.previewUrl);
+      await sendOTPEmail(email, otp, 'verification');
     } catch (emailError) {
-      console.error('Email sending failed (non-fatal):', emailError.message);
-      // Continue with registration - user can request resend
+      // Email failed but registration continues
     }
 
     res.status(201).json({
@@ -113,12 +110,10 @@ exports.register = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Register error:', error.message);
-    console.error('Register error stack:', error.stack);
     res.status(400).json({
       success: false,
       message: 'Erreur de création',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -190,16 +185,15 @@ exports.verifyOTP = async (req, res) => {
 
     // Send welcome email
     try {
-      const welcomeRes = await sendWelcomeEmail(user.email, user.prenom);
-      if (welcomeRes && welcomeRes.previewUrl) console.log('Welcome email preview URL:', welcomeRes.previewUrl);
+      await sendWelcomeEmail(user.email, user.prenom);
     } catch (e) {
-      console.error('Error sending welcome email (non-fatal):', e);
+      // Welcome email failed but verification continues
     }
 
     // Generate JWT
     const token = jwt.sign(
       { userId: user._id, role: user.role, email: user.email, name: user.prenom },
-      process.env.JWT_SECRET || 'Mohamedharbiaaaa',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
 
@@ -218,7 +212,6 @@ exports.verifyOTP = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('OTP verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur de vérification',
@@ -267,8 +260,7 @@ exports.resendOTP = async (req, res) => {
     await user.save();
 
     // Send OTP email
-    const mailRes = await sendOTPEmail(email, otp, purpose);
-    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (resendOTP):', mailRes.previewUrl);
+    await sendOTPEmail(email, otp, purpose);
 
     res.status(200).json({
       success: true,
@@ -276,7 +268,6 @@ exports.resendOTP = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Resend OTP error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de l\'envoi du code',
@@ -317,8 +308,7 @@ exports.forgotPassword = async (req, res) => {
     await user.save();
 
     // Send OTP email
-    const mailRes = await sendOTPEmail(email, otp, 'reset');
-    if (mailRes && mailRes.previewUrl) console.log('OTP preview URL (forgotPassword):', mailRes.previewUrl);
+    await sendOTPEmail(email, otp, 'reset');
 
     res.status(200).json({
       success: true,
@@ -326,7 +316,6 @@ exports.forgotPassword = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Forgot password error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -396,7 +385,6 @@ exports.resetPassword = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -410,22 +398,14 @@ exports.registerAdmin = async (req, res) => {
   try {
     
     const { nom, prenom, email, motdepasse, adresse, adminSecret } = req.body;
-     const receivedSecret = (adminSecret || '').toString().trim();
+    const receivedSecret = (adminSecret || '').toString().trim();
     const expectedSecret = (process.env.ADMIN_SECRET || '').toString().trim();
-    console.log('Received:', JSON.stringify(receivedSecret)); // Debug
-    console.log('Expected:', JSON.stringify(expectedSecret));
     
-    console.log('Received adminSecret:', adminSecret); // Debug log
-    console.log('Expected adminSecret:', process.env.ADMIN_SECRET);
     // Verify admin secret
     if (receivedSecret !== expectedSecret) {
       return res.status(403).json({
         success: false,
-        message: 'Clé secrète admin invalide',
-        received: receivedSecret,
-        expected: expectedSecret,
-        lengthReceived: receivedSecret.length,
-        lengthExpected: expectedSecret.length
+        message: 'Clé secrète admin invalide'
       });
     }
 
@@ -454,7 +434,7 @@ exports.registerAdmin = async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { userId: user._id, role: user.role, email: user.email },
-      process.env.JWT_SECRET || 'Mohamedharbiaaaa',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
 
@@ -473,7 +453,6 @@ exports.registerAdmin = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Admin registration error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -498,7 +477,6 @@ exports.verifyAdminRole = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Admin verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Error verifying admin status'
@@ -527,7 +505,6 @@ exports.verifyRole = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Role verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Error verifying role',
@@ -592,7 +569,6 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',
@@ -603,10 +579,8 @@ exports.login = async (req, res) => {
 
 
 // Get current user
-// In userController.js - modify getCurrentUser
 exports.getCurrentUser = async (req, res) => {
   try {
-    console.log('Fetching user for ID:', req.user.userId); // Debug log
     const user = await User.findById(req.user.userId).select('-mdp');
     
     if (!user) {
@@ -616,7 +590,6 @@ exports.getCurrentUser = async (req, res) => {
       });
     }
     
-    // Return consistent response structure
     res.status(200).json({
       success: true,
       message: 'User data retrieved successfully',
@@ -631,7 +604,6 @@ exports.getCurrentUser = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in getCurrentUser:', error);
     res.status(500).json({ 
       success: false,
       message: 'Erreur serveur',
@@ -770,7 +742,6 @@ exports.getUserRole = async (req, res) => {
       role: user.role
     });
   } catch (error) {
-    console.error('Get user role error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur',

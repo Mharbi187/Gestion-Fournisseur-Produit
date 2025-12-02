@@ -13,10 +13,6 @@ const rapportRoutes = require('./src/routes/rapportRoutes');
 
 // Load environment variables
 dotenv.config();
-console.log('PORT:', process.env.PORT);
-console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'configured' : 'NOT SET');
-console.log('SMTP_USER:', process.env.SMTP_USER ? 'configured' : 'NOT SET');
-console.log('SMTP_PASS:', process.env.SMTP_PASS ? 'configured' : 'NOT SET');
 
 // Initialize Express app
 const app = express();
@@ -47,8 +43,6 @@ app.use('/api/rapports', rapportRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;
-console.log('Using PORT:', PORT);
 app.listen(PORT, () => {
-  console.log(`Serveur lancé sur http://localhost:${PORT}`);
-  console.log(`CORS autorisé pour: localhost:5173, localhost:3000, *.vercel.app`);
+  console.log(`Server running on port ${PORT}`);
 });

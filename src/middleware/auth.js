@@ -10,11 +10,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
-  console.log('[Auth] Token received:', token ? '*****' : 'none');
   
   if (!token) {
-    console.error('[Auth] No token provided');
     return res.status(401).json({
       success: false,
       message: 'Token d\'authentification requis'
@@ -23,8 +20,6 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.error('[Auth] Token verification failed:', err.message);
-      
       if (err.name === 'TokenExpiredError') {
         return res.status(403).json({
           success: false,
@@ -39,12 +34,6 @@ const authenticateToken = (req, res, next) => {
       });
     }
     
-    console.log('[Auth] Token decoded:', { 
-      userId: decoded.userId, 
-      role: decoded.role,
-      email: decoded.email,
-      name:decoded.prenom
-    });
     req.user = decoded;
     next();
   });
@@ -57,7 +46,6 @@ const authenticateToken = (req, res, next) => {
 const authorizedRole = (allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
-      console.error('[Auth] No user in request');
       return res.status(401).json({
         success: false,
         message: 'Non authentifié'
@@ -65,14 +53,12 @@ const authorizedRole = (allowedRoles) => {
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      console.error(`[Auth] Role ${req.user.role} not authorized`);
       return res.status(403).json({
         success: false,
         message: `Accès refusé. Rôles autorisés: ${allowedRoles.join(', ')}`
       });
     }
 
-    console.log(`[Auth] User ${req.user.userId} authorized as ${req.user.role}`);
     next();
   };
 };
@@ -90,7 +76,6 @@ const isOwnerOrAdmin = (req, res, next) => {
   }
 
   if (resourceId !== userId) {
-    console.error(`[Auth] User ${userId} unauthorized for resource ${resourceId}`);
     return res.status(403).json({
       success: false,
       message: 'Vous ne pouvez accéder qu\'à vos propres ressources'
