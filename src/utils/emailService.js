@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 // Generate a 6-digit numeric OTP
 function generateOTP(length = 6) {
@@ -7,38 +8,57 @@ function generateOTP(length = 6) {
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
-// Create transporter using environment SMTP config or Ethereal test account
-async function createTransporter() {
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (user && pass) {
-    // Use Gmail with explicit settings
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // use TLS
-      auth: {
-        user,
-        pass
-      },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 10000
-    });
+// Send OTP email using Resend API (works on Render free tier)
+async function sendOTPEmail(to, otp, purpose = 'verification') {
+  try {
+    console.log('📧 sendOTPEmail called for:', to);
     
-    // Verify connection
-    try {
-      await transporter.verify();
-      console.log('✅ SMTP connection verified successfully');
-    } catch (verifyErr) {
-      console.error('❌ SMTP verification failed:', verifyErr.message);
+    const apiKey = process.env.RESEND_API_KEY;
+    
+    if (!apiKey) {
+      console.log('⚠️ RESEND_API_KEY not set, falling back to Ethereal for testing');
+      return await sendOTPEmailFallback(to, otp, purpose);
     }
     
-    return transporter;
+    const resend = new Resend(apiKey);
+    const from = process.env.FROM_EMAIL || 'LIVRINI <onboarding@resend.dev>';
+    const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
+    
+    console.log('📧 Using Resend API');
+    console.log('📧 From:', from);
+    console.log('📧 To:', to);
+    
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [to],
+      subject,
+      html: `
+        <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
+          <p>Bonjour,</p>
+          <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> pour LIVRINI :</p>
+          <p style="font-size:22px;font-weight:700;margin:12px 0;">${otp}</p>
+          <p>Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, ignorez ce message.</p>
+          <p>Merci,<br/>L'équipe LIVRINI</p>
+        </div>
+      `
+    });
+    
+    if (error) {
+      console.error('❌ Resend error:', error);
+      throw new Error(error.message);
+    }
+    
+    console.log('✅ Email sent successfully! ID:', data.id);
+    return { info: data };
+    
+  } catch (err) {
+    console.error('❌ sendOTPEmail error:', err.message);
+    throw err;
   }
+}
 
-  // Fallback to Ethereal for development/testing
+// Fallback using Ethereal for development/testing
+async function sendOTPEmailFallback(to, otp, purpose = 'verification') {
   const testAccount = await nodemailer.createTestAccount();
   const transporter = nodemailer.createTransport({
     host: testAccount.smtp.host,
@@ -49,95 +69,72 @@ async function createTransporter() {
       pass: testAccount.pass
     }
   });
-
-  // attach the test account info so callers can log preview URL
-  transporter.__testAccount = testAccount;
-  return transporter;
+  
+  const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
+  const html = `
+    <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
+      <p>Bonjour,</p>
+      <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> pour LIVRINI :</p>
+      <p style="font-size:22px;font-weight:700;margin:12px 0;">${otp}</p>
+      <p>Ce code expire dans 10 minutes.</p>
+      <p>Merci,<br/>L'équipe LIVRINI</p>
+    </div>
+  `;
+  
+  const info = await transporter.sendMail({
+    from: 'LIVRINI <test@ethereal.email>',
+    to,
+    subject,
+    html
+  });
+  
+  const previewUrl = nodemailer.getTestMessageUrl(info);
+  console.log('📧 Ethereal preview URL:', previewUrl);
+  return { previewUrl, info };
 }
 
-// Send OTP email
-async function sendOTPEmail(to, otp, purpose = 'verification') {
-  try {
-    console.log('📧 sendOTPEmail called for:', to);
-    console.log('📧 SMTP_USER configured:', !!process.env.SMTP_USER);
-    console.log('📧 SMTP_PASS configured:', !!process.env.SMTP_PASS);
-    
-    const transporter = await createTransporter();
-    const from = process.env.FROM_EMAIL || process.env.SMTP_USER || 'no-reply@livrini.com';
-    const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
-    
-    console.log('📧 From:', from);
-    console.log('📧 To:', to);
-    console.log('📧 Subject:', subject);
-    console.log('📧 Sending email...');
-    
-    const html = `
-      <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
-        <p>Bonjour,</p>
-        <p>Voici votre code <strong>${purpose === 'reset' ? 'de réinitialisation' : 'de vérification'}</strong> pour LIVRINI :</p>
-        <p style="font-size:22px;font-weight:700;margin:12px 0;">${otp}</p>
-        <p>Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, ignorez ce message.</p>
-        <p>Merci,<br/>L'équipe LIVRINI</p>
-      </div>
-    `;
-
-    const info = await transporter.sendMail({
-      from,
-      to,
-      subject,
-      html
-    });
-    
-    console.log('📧 Email sent successfully! MessageId:', info.messageId);
-
-    // If using Ethereal, log and return the preview URL for debugging
-    if (transporter.__testAccount) {
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      console.log('📧 Ethereal preview URL:', previewUrl);
-      return { previewUrl, info };
-    }
-
-    console.log('📧 Gmail email delivered!');
-    return { info };
-  } catch (err) {
-    console.error('❌ sendOTPEmail error:', err.message);
-    console.error('❌ Full error:', err);
-    throw err;
-  }
-}
-
-// Send welcome email (simple)
+// Send welcome email
 async function sendWelcomeEmail(to, firstName = '') {
   try {
-    const transporter = await createTransporter();
-    const from = process.env.FROM_EMAIL || 'no-reply@livrini.com';
-    const subject = 'Bienvenue sur LIVRINI';
-    const html = `
-      <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
-        <p>Bonjour ${firstName || ''},</p>
-        <p>Bienvenue sur LIVRINI ! Nous sommes ravis de vous compter parmi nos utilisateurs.</p>
-        <p>Bon shopping,<br/>L'équipe LIVRINI</p>
-      </div>
-    `;
-
-    const info = await transporter.sendMail({ from, to, subject, html });
-
-    if (transporter.__testAccount) {
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      console.log('Ethereal preview URL (welcome):', previewUrl);
-      return { previewUrl, info };
+    const apiKey = process.env.RESEND_API_KEY;
+    
+    if (!apiKey) {
+      console.log('⚠️ RESEND_API_KEY not set, skipping welcome email');
+      return { info: null };
     }
-
-    return { info };
+    
+    const resend = new Resend(apiKey);
+    const from = process.env.FROM_EMAIL || 'LIVRINI <onboarding@resend.dev>';
+    
+    const { data, error } = await resend.emails.send({
+      from,
+      to: [to],
+      subject: 'Bienvenue sur LIVRINI',
+      html: `
+        <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
+          <p>Bonjour ${firstName || ''},</p>
+          <p>Bienvenue sur LIVRINI ! Nous sommes ravis de vous compter parmi nos utilisateurs.</p>
+          <p>Bon shopping,<br/>L'équipe LIVRINI</p>
+        </div>
+      `
+    });
+    
+    if (error) {
+      console.error('❌ Welcome email error:', error);
+      return { info: null };
+    }
+    
+    console.log('✅ Welcome email sent! ID:', data.id);
+    return { info: data };
+    
   } catch (err) {
-    console.error('sendWelcomeEmail error:', err);
-    throw err;
+    console.error('sendWelcomeEmail error:', err.message);
+    return { info: null };
   }
 }
 
 module.exports = {
   generateOTP,
   sendOTPEmail,
-  sendWelcomeEmail,
-  createTransporter
+  sendWelcomeEmail
 };
