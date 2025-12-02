@@ -9,16 +9,13 @@ function generateOTP(length = 6) {
 
 // Create transporter using environment SMTP config or Ethereal test account
 async function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (host && port && user && pass) {
+  if (user && pass) {
+    // Use Gmail service for simplicity
     return nodemailer.createTransport({
-      host,
-      port: Number(port),
-      secure: Number(port) === 465, // true for 465
+      service: 'gmail',
       auth: {
         user,
         pass
@@ -46,9 +43,17 @@ async function createTransporter() {
 // Send OTP email
 async function sendOTPEmail(to, otp, purpose = 'verification') {
   try {
+    console.log('📧 sendOTPEmail called for:', to);
+    console.log('📧 SMTP_USER configured:', !!process.env.SMTP_USER);
+    console.log('📧 SMTP_PASS configured:', !!process.env.SMTP_PASS);
+    
     const transporter = await createTransporter();
-    const from = process.env.FROM_EMAIL || 'no-reply@livrini.com';
+    const from = process.env.FROM_EMAIL || process.env.SMTP_USER || 'no-reply@livrini.com';
     const subject = purpose === 'reset' ? 'Votre code de réinitialisation LIVRINI' : 'Votre code de vérification LIVRINI';
+    
+    console.log('📧 From:', from);
+    console.log('📧 To:', to);
+    console.log('📧 Subject:', subject);
     const html = `
       <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#222;">
         <p>Bonjour,</p>
@@ -65,17 +70,21 @@ async function sendOTPEmail(to, otp, purpose = 'verification') {
       subject,
       html
     });
+    
+    console.log('📧 Email sent successfully! MessageId:', info.messageId);
 
     // If using Ethereal, log and return the preview URL for debugging
     if (transporter.__testAccount) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
-      console.log('Ethereal preview URL:', previewUrl);
+      console.log('📧 Ethereal preview URL:', previewUrl);
       return { previewUrl, info };
     }
 
+    console.log('📧 Gmail email delivered!');
     return { info };
   } catch (err) {
-    console.error('sendOTPEmail error:', err);
+    console.error('❌ sendOTPEmail error:', err.message);
+    console.error('❌ Full error:', err);
     throw err;
   }
 }
