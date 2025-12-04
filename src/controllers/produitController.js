@@ -126,17 +126,25 @@ exports.getProduitById = async (req, res) => {
 // POST create product (fournisseur only)
 exports.createProduit = async (req, res) => {
   try {
-    const { nom, description, prix, quantiteStock, typeProduit, imageURL, statutProduit } = req.body;
+    const { nom, description, prix, quantiteStock, categorie, imageURL, statutProduit } = req.body;
+
+    // Validate required fields
+    if (!nom || !description || !prix || !categorie || !imageURL) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tous les champs obligatoires doivent être remplis (nom, description, prix, categorie, imageURL)'
+      });
+    }
 
     // Add fournisseur ID from JWT token
     const produit = new Produit({
       nom,
       description,
-      prix,
-      quantiteStock,
-      typeProduit,
+      prix: Number(prix),
+      quantiteStock: Number(quantiteStock) || 0,
+      categorie,
       imageURL,
-      statutProduit,
+      statutProduit: statutProduit || 'Disponible',
       fournisseur: req.user.userId // Added from JWT
     });
 
