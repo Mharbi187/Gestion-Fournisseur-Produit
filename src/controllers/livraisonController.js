@@ -107,7 +107,20 @@ exports.confirmLivraison = async (req, res) => {
 // Keep existing methods with improved responses
 exports.getLivraisonById = async (req, res) => {
   try {
-    const livraison = await Livraison.findById(req.params.id);
+    const { id } = req.params;
+    let livraison = null;
+    
+    // Check if id is a valid MongoDB ObjectId
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      livraison = await Livraison.findById(id).populate('commande');
+    }
+    
+    // If not found by _id, try by commande reference
+    if (!livraison) {
+      livraison = await Livraison.findOne({ commande: id }).populate('commande');
+    }
+    
     if (!livraison) {
       return res.status(404).json({
         success: false,

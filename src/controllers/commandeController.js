@@ -136,7 +136,20 @@ exports.getFournisseurCommandes = async (req, res) => {
 // Keep your existing methods exactly as they were
 exports.getCommandeById = async (req, res) => {
   try {
-    const commande = await Commande.findOne({ numeroCommande: req.params.id });
+    const { id } = req.params;
+    let commande = null;
+    
+    // Check if id is a valid MongoDB ObjectId - try by _id first
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      commande = await Commande.findById(id);
+    }
+    
+    // If not found by _id, try by numeroCommande
+    if (!commande) {
+      commande = await Commande.findOne({ numeroCommande: id });
+    }
+    
     if (!commande) {
       return res.status(404).json({ 
         success: false,
